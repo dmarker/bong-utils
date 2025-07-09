@@ -1,0 +1,139 @@
+.\"
+.\" Copyright (c) 2025 David Marker <dave@freedave.net>
+.\"
+.\" SPDX-License-Identifier: BSD-2-Clause
+.\"
+.Dd April 4, 2025
+.Dt NGPORTAL 8
+.Os
+.Sh NAME
+.Nm ngportal
+.Nd netgraph portal gun to create connected wormhole pairs
+.Sh SYNOPSIS
+.Nm
+.Op Fl n
+.Op Fl j Ar jail
+.Ar spec1
+.Op Ar spec2
+.Sh DESCRIPTION
+The
+.Nm
+utility creates an
+.Xr ng_wormhole 4
+and then opens it in a different jail to connect and complete the pair.
+Additionally, as a convenience,
+.Nm
+can name one or both wormholes for
+.Xr ngctl 8 ,
+as well as connect one or both sides event horizon
+to an already existing
+.Xr netgraph 4
+node.
+.Pp
+The following options are available:
+.Bl -tag -width indent
+.It Fl n
+Disable automatic loading of
+.Xr ng_socket 4
+and
+.Xr ng_wormhole 4
+kernel modules.
+.It Fl j Ar jail
+Perform the actions inside the
+.Ar jail .
+This becomes the new default jail when none is specified.
+.El
+.Pp
+Specifications are colon separated strings with the following
+components, all of which are optional:
+.Op Ar jail Ns :
+.Op Ar name Ns :
+.Op Ar node:hook
+.Bd -literal -offset indent -compact
+jail      name or id of jail that has been created.
+name      a name to provide the wormhole in the jail referenced
+          above if present or the default.
+node:hook a netgraph node and one of its hooks to connect to the
+          evthorizon of the wormhole in the jail referenced
+	  above if present or the default.
+.Ed
+.Pp
+.Ar jail
+if left unspecified this means the location where you are running
+.Nm .
+In fact you will confuse the portal gun if you specify (by name
+or jail ID) the jail where you are running
+.Nm .
+But wormhole pairs can
+.Sy not
+be in the same
+.Ar jail .
+So at least one
+.Ar jail
+must be specified.
+.Pp
+Trailing colons are optional, but to specify a wormhole
+.Ar name
+you must have a leading colon even if you do not provide a
+.Ar jail .
+The
+.Ar node:hook
+pair really must be that.
+It is not a
+.Em path
+with
+.Em hook .
+It must simply
+identify the name or ID of a
+.Em node
+and the name of a
+.Em hook
+on that
+.Em node .
+.Sh EXIT STATUS
+.Ex -std
+.Sh EXAMPLES
+Create a wormhole pair from the system to jail
+.Li test :
+.Dl # ngportal test
+.Pp
+Do the same but name the wormholes this time:
+.Dl # ngportal :wh0a test:wh0b
+.Pp
+Assuming you have an
+.Xr ng_bridge 4
+named
+.Li br0
+where you are running
+.Nm
+and an
+.Xr ng_eiface 4
+named
+.Li ngeth0
+in the jail
+.Li test
+they can be connected via wormhole to each other.
+The following will name the wormholes and connect them:
+.Dl # ngportal :wh0a:br0:link test:wh0b:ngeth0:ether
+.Pp
+All previous examples used a default jail.
+But to connect two
+.Xr ng_eiface 4
+in two peer
+.Li jails
+.Li (ngeth0a
+in left and
+.Li ngeth0b
+in center) use the following:
+.Dl # ngportal left::ngeth0a:ether center::ngeth0b:ether
+.Sh SEE ALSO
+.Xr netgraph 4 ,
+.Xr ng_bridge 4 ,
+.Xr ng_eiface 4 ,
+.Xr ng_wormhole 4 ,
+.Xr ngctl 8
+.Sh AUTHORS
+.An David Marker Aq Mt dave@freedave.net
+.Sh BUGS
+Until there is a way for a process to get the jail ID in which it is running,
+the only way to correctly refer to that jail is to leave it unspecified.

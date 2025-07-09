@@ -1,0 +1,137 @@
+# This is identical to split4ula but with ng_tee(4) strategically placed so
+# I can examine traffic using ngpcap(8). The ng_tee(4) `left2right` and
+# `right2left` hooks are therefore left unconnected.
+#
+# Here is what is created by this snippet:
+#
+#
+#                                  GUA
+#                                +------------+
+#          ULA + IPv4            |  ng_eiface |        ULA + IPv4
+#         +--------------+       | EIFACE=gw0 |      +---------------+
+#         | ng_eiface    |       +-----+------+      | ng_eiface     |
+#         | EIFACE1=lan0 |       ether |             | EIFACE2=wifi0 |
+#         +-------+------+             |             +------+--------+
+#           ether |                    |                    | ether
+#                 |                    | nomatch            |
+#                 |               +----+----+               |
+#                 |     vl${TAG1} | ng_vlan | vl${TAG2}     |
+#                 +---------------+ VLAN=   +---------------+
+#                                 | vlan0   |
+#                                 +----+----+
+#                                      | downstream
+#                                      |
+#                                 left |
+#                                 +----+----+
+#                                 | ng_tee  |
+#                  left2right ----+ TEE=    +---- right2left
+#                                 | tee0    |
+#                                 +----+----+
+#                                      | right
+#                                      |
+#                                 link |
+#             +------------------------+------------------------+
+#             | ng_bridge         BRIDGE=br0                    |
+#             +----------+----------------------------+---------+
+#                        | link                  link |
+#                        |                            |
+#                        |                            | left
+#                        |                      +-----+----+
+#                   left |                      | ng_tee   |
+#                   +----+-----+  left2right ---+          +--- right2left
+#                   | ng_tee   |                |tee${TAG2}|
+#     left2right ---+          +--- right2left  +-----+----+
+#                   |tee${TAG1}|                right |
+#                   +----+-----+                      |
+#                        | right                      |
+#                        |                            |
+#                 +------+                            +-----+
+#                 |                                         |
+#           untag |                                         | untag
+#           +-----+------+                           +------+-----+
+#           | ng_ula4tag |                           | ng_ula4tag |
+#           | tag${TAG1} |                           | tag${tag2} |
+#           +-----+------+                           +------+-----+
+#                 | tag                                 tag |
+#           lower |                                         | lower
+#        +--------+------+                           +------+--------+
+#        | ng_ether      |                           | ng_ether      |
+#        | ETHERDEV1=em1 |                           | ETHERDEV2=em2 |
+#        | ETHER1=em1br0 |                           | ETHER2=em2br0 |
+#        +--------+------+                           +------+--------+
+#                 |                                         |
+#                 V                                         V
+#                LAN                                       WiFi
+#
+# Notice nodes are in three lanes of variable by suffix and we have one more
+# variabel in the middle lane, TEE
+#	EIFACE1, TAG1, and ETHERDEV1, ETHER1
+#	EIFACE, VLAN, TEE, and BRIDGE
+#	EIFACE2, TAG2, and ETHERDEV2, ETHER2
+#
+# These are the same variables as `split4ula` so same thing works:
+#	grep -o '^[^#]*' split4ula | \
+#	EIFACE=gw0 VLAN=vlan0 TEE=tee0 BRIDGE=br0 \
+#	EIFACE1=lan0 TAG1=10 ETHERDEV1=em1 ETHER1=${ETHERDEV1}${BRIDGE} \
+#	EIFACE2=wifi0 TAG2=20 ETHERDEV2=em2 ETHER2=${ETHERDEV2}${BRIDGE} \
+#	envsubst
+#
+# All those teeX left2right and right2left are just waiting to allow packet
+# captures.
+#
+# TODO: you shoud configure ETHER1 and ETHER2 in rc.conf following this
+# https://wiki.freebsd.org/Networking/10GbE/Router#Disabling_LRO_and_TSO
+#
+# So in this case it would be (remembering to use new names):
+# ifconfig_em1br0="-tso4 -tso6 -lro -vlanhwtso promisc up"
+# ifconfig_em2br0="-tso4 -tso6 -lro -vlanhwtso promisc up"
+
+# create middle lane first, starting with EIFACE as it is persistent
+mkpeer .: eiface e ether
+name .:e ${EIFACE}
+disconnect .: e
+
+# next VLAN
+mkpeer ${EIFACE}: vlan ether nomatch
+name ${EIFACE}:ether ${VLAN}
+msg ${VLAN}: setencap 0
+
+# then TEE
+mkpeer ${VLAN}: tee downstream left
+name ${VLAN}:downstream ${TEE}
+
+# finally BRIDGE for middle lane
+mkpeer ${TEE}: bridge right link
+name ${TEE}:right ${BRIDGE}
+msg ${BRIDGE}: setpersistent
+
+# Now the left lane (right will be nearly identical)
+# We start from the bottom. This is because you can't use a `br0:link` to locate
+# a node after `mkpeer`.
+name ${ETHERDEV1}: ${ETHER1}
+mkpeer ${ETHER1}: ula4tag lower tag
+name ${ETHER1}:lower tag${TAG1}
+msg tag${TAG1}: setconfig { ulatag=${TAG1}, ip4tag=${TAG1} }
+
+mkpeer tag${TAG1}: tee untag right
+name tag${TAG1}: tee${TAG1}
+connect tee${TAG1}: ${BRIDGE}: left link
+
+mkpeer ${VLAN}: eiface vl${TAG1} ether
+name ${VLAN}:vl${TAG1} ${EIFACE1}
+msg ${VLAN}: addfilter { vlan=${TAG1} hook="vl${TAG1}" pcp=0 cfi=0 }
+
+# Finally the right lane
+name ${ETHERDEV2}: ${ETHER2}
+mkpeer ${ETHER2}: ula4tag lower tag
+name ${ETHER2}:lower tag${TAG1}
+msg tag${TAG2}: setconfig { ulatag=${TAG2}, ip4tag=${TAG2} }
+
+mkpeer tag${TAG2}: tee untag right
+name tag${TAG2}: tee${TAG2}
+connect tee${TAG2}: ${BRIDGE}: left link
+
+mkpeer ${VLAN}: eiface vl${TAG2} ether
+name ${VLAN}:vl${TAG2} ${EIFACE2}
+msg ${VLAN}: addfilter { vlan=${TAG2} hook="vl${TAG2}" pcp=0 cfi=0 }
+

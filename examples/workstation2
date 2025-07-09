@@ -1,0 +1,39 @@
+# Rather than create a whole new snippet, this just combines 2
+# This is actually what I run on my main workstation.
+# 
+# Here is what is created by this snippet:
+#
+#      +-------------+                                  +--------------+
+#      | ng_eiface   |                                  | ng_eiface    |
+#      | EIFACE=lan0 |                                  | EIFACE=jail0 |
+#      +-----+-------+                                  +-----+--------+
+#      ether |                                                |
+#            | link                                      link |
+#      +-----+---------------------+    +---------------------+-----+
+#      | ng_bridge BRIDGE=br0      |    | ng_bridge BRIDGE=br1      |
+#      +-----+---------------------+    +---------------------------+
+#       link |
+#            | lower
+#      +-----+--------+
+#      | ng_ether     |
+#      | ETEHRDEV=re0 | <-- MUST be put in promisc mode
+#      | ETHER=br0re0 |
+#      +--------------+
+#
+# But the trick is you create it by reusing ether-eiface-bridge and eiface-bridge
+#
+# You need to run this through envsubst with the following variables set:
+#	grep -o '^[^#]*' ether-eiface-bridge | \
+#	EIFACE=lan0 ETHERDEV=re0 BRIDGE=br0 ETHER=${BRIDGE}${ETHERDEV} \
+#	envsubst > /usr/local/etc/ng/ngctl.conf
+#
+# Followed by:
+#	grep -o '^[^#]*' eiface-bridge | \
+#	EIFACE=jail0 BRIDGE=br1 \
+#	envsubst >> /usr/local/etc/ng/ngctl.conf
+# 
+# You could keep stamping out more bridges for your jails, but I find that one
+# link that gets them to the internet and 1 for private comms is enough.
+#
+# I do plan or more sophisticated configuration, but with jail heirarchies.
+# So this is probably still the max complexity for the workstation.

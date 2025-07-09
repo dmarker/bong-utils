@@ -1,0 +1,9 @@
+.depend*
+*.a
+*.so
+*.so.*
+*.o
+*.pico
+*.?.gz
+ngportal/ngportal
+ngpcap/ngpcap

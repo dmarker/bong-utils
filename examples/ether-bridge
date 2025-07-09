@@ -1,0 +1,48 @@
+# This is just connecting one of your network interfaces, an ng_ether(4), to
+# an ng_bridge(4).
+#
+# Here is what is created by this snippet:
+#
+#      +--------+
+#      |        |upper
+#      |  +-----+--------+
+#      |  | ng_ether     |
+#      |  | ETHERDEV=em1 |
+#      |  | ETHER=lan0   |   <-- MUST be put in promisc mode
+#      |  +-----+--------+
+#      |  lower |
+#      |        | link
+#      |  +-----+---------------------+
+#      |  | ng_bridge BRIDGE=br0      |
+#      |  +-----+---------------------+
+#      |        | link
+#      +--------+
+#
+# The purpose of this snippet is to give you a bridge ready to have any number
+# of wormholes connected to it for jails to share your network.
+#
+# You need to run this through envsubst with the following variables set:
+#	grep -o '^[^#]*' ether-bridge | \
+#	ETHERDEV=em1 ETHER=lan0 BRIDGE=br0 | \
+#	envsubst > /usr/local/etc/ng/ngctl.conf
+#
+#
+# TODO: you shoud configure ETHER in rc.conf following this
+# https://wiki.freebsd.org/Networking/10GbE/Router#Disabling_LRO_and_TSO
+#
+# It should look similar to this
+# ifconfig_lan0="-ts04 -tso6 -lro -vlanhwtso ... up"
+#
+# I use setpromisc here because it doesn't seem to show up with ifconfig(8).
+# You have to provide any addresses in that config as well.
+
+# start with renaming LANIF
+name ${ETHERDEV}: ${ETHER}
+msg ${ETHER}: setpromisc 1
+
+# even though we will make the bridge persist, we can create it by connecting
+# to LANIF and avoid a disconnect.
+mkpeer ${ETHER}: bridge lower link
+name ${ETHER}:lower ${BRIDGE}
+connect ${ETHER}: ${BRIDGE}: upper link
+msg ${BRIDGE}: setpersistent

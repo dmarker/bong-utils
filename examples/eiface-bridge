@@ -1,0 +1,36 @@
+# This is just going to create and connect an ng_eiface(4) and ng_bridge(4).
+# The eiface will be connected to the bridge.
+#
+# Here is what is created by this snippet:
+#
+#      +--------------+
+#      | ng_eiface    |
+#      | EIFACE=jail0 |
+#      +-----+--------+
+#      ether |
+#            | link
+#      +-----+---------------------+
+#      | ng_bridge BRIDGE=br1      |
+#      +---------------------------+
+#
+# The purpose of this snippet is to give you a bridge ready to have any number
+# of wormholes connected to it for jails to share a private network.
+#
+# You need to run this through envsubst with the following variables set.
+# Picture above as if this was run:
+#	grep -o '^[^#]*' eiface-bridge | \
+#	EIFACE=jail0 BRIDGE=br1 \
+#	envsubst > /usr/local/etc/ng/ngctl.conf
+#
+# TODO: you shoud configure EIFACE in rc.conf
+#
+
+# start with creating EIFACE as it persists anyway
+mkpeer .: eiface e ether
+name .:e ${EIFACE}
+disconnect .: e
+
+# and now just create the bridge connected.
+mkpeer ${EIFACE}: bridge ether link
+name ${EIFACE}:ether ${BRIDGE}
+msg ${BRIDGE}: setpersistent

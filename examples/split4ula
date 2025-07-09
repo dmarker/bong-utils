@@ -1,0 +1,124 @@
+# This is a much larger snippet, but kept to minimum for what it does.
+#
+# This is useful if, like me, you have an ISP that gives you a /64 prefix. This
+# allows you to continue sharing your GUA prefix while routing separate IPv4
+# and ULA IPv6 addresses. I use this so that I can have DHCPv6 for the ULA on
+# my LAN and keep SLAAC on WiFi (required by android).
+#
+# Here is what is created by this snippet:
+#
+#                                  GUA
+#                                +------------+
+#          ULA + IPv4            |  ng_eiface |        ULA + IPv4
+#         +--------------+       | EIFACE=gw0 |      +---------------+
+#         | ng_eiface    |       +-----+------+      | ng_eiface     |
+#         | EIFACE1=lan0 |       ether |             | EIFACE2=wifi0 |
+#         +-------+------+             |             +------+--------+
+#           ether |                    |                    | ether
+#                 |                    | nomatch            |
+#                 |               +----+----+               |
+#                 |     vl${TAG1} | ng_vlan | vl${TAG2}     |
+#                 +---------------+ VLAN=   +---------------+
+#                                 | vlan0   |
+#                                 +----+----+
+#                                      | downstream
+#                                      |
+#                                 link |
+#             +------------------------+------------------------+
+#             | ng_bridge         BRIDGE=br0                    |
+#             +---+-----------------------------------------+---+
+#                 | link                               link |
+#                 |                                         |
+#           untag |                                         | untag
+#           +-----+------+                           +------+-----+
+#           | ng_ula4tag |                           | ng_ula4tag |
+#           | tag${TAG1} |                           | tag${tag2} |
+#           +-----+------+                           +------+-----+
+#                 | tag                                 tag |
+#           lower |                                         | lower
+#        +--------+------+                           +------+--------+
+#        | ng_ether      |                           | ng_ether      |
+#        | ETHERDEV1=em1 |                           | ETHERDEV2=em2 |
+#        | ETHER1=em1br0 |                           | ETHER2=em2br0 |
+#        +--------+------+                           +------+--------+
+#                 |                                         |
+#                 V                                         V
+#                LAN                                       WiFi
+#
+# Notice nodes are in three lanes of variable by suffix
+#	EIFACE1, TAG1, and ETHERDEV1, ETHER1
+#	EIFACE, VLAN, and BRIDGE
+#	EIFACE2, TAG2, and ETHERDEV2, ETHER2
+#
+# TAG1 and TAG2 must be integers and they are used to create hook names on VLAN
+# and are the suffix of the ng_ula4tag(4) nodes.
+#
+# This one is a good reminder that you don't have to connect the `upper` hook of
+# ng_ether(4). In fact that would not make sense here.
+#
+# To give users a hint they should not configure em1/em2 we also rename them to
+# em1br0 and em2br0 (add the bridge name to the end).
+#
+# Picture above as if this was run:
+#	grep -o '^[^#]*' split4ula | \
+#	EIFACE=gw0 VLAN=vlan0 BRIDGE=br0 \
+#	EIFACE1=lan0 TAG1=10 ETHERDEV1=em1 ETHER1=${ETHERDEV1}${BRIDGE} \
+#	EIFACE2=wifi0 TAG2=20 ETHERDEV2=em2 ETHER2=${ETHERDEV2}${BRIDGE} \
+#	envsubst > /usr/local/etc/ng/ngctl.conf
+#
+#
+# TODO: you shoud configure ETHER1 and ETHER2 in rc.conf following this
+# https://wiki.freebsd.org/Networking/10GbE/Router#Disabling_LRO_and_TSO
+#
+# So in this case it would be (remembering to use new names):
+# ifconfig_em1br0="-tso4 -tso6 -lro -vlanhwtso promisc up"
+# ifconfig_em2br0="-tso4 -tso6 -lro -vlanhwtso promisc up"
+#
+# This is passing IPv4 and IPv6 through the ula4tags. You could make a similar
+# snippet that dropped IPv4 (or ULA for that matter). See ng_ula4tag(4).
+#
+#
+# Take that Claro Brasil, you can't defeat freedave while he has FreeBSD!
+
+
+# create middle lane first, starting with EIFACE as it is persistent
+mkpeer .: eiface e ether
+name .:e ${EIFACE}
+disconnect .: e
+
+# next VLAN
+mkpeer ${EIFACE}: vlan ether nomatch
+name ${EIFACE}:ether ${VLAN}
+msg ${VLAN}: setencap 0
+
+# finally BRIDGE for middle lane
+mkpeer ${VLAN}: bridge downstream link
+name ${VLAN}:downstream ${BRIDGE}
+msg ${BRIDGE}: setpersistent
+
+
+# Now the left lane (right will be nearly identical)
+# We start from the bottom. This is because you can't use a `br0:link` to locate
+# a node after `mkpeer`.
+name ${ETHERDEV1}: ${ETHER1}
+mkpeer ${ETHER1}: ula4tag lower tag
+name ${ETHER1}:lower tag${TAG1}
+msg tag${TAG1}: setconfig { ulatag=${TAG1}, ip4tag=${TAG1} }
+
+connect tag${TAG1}: ${BRIDGE}: untag link
+
+mkpeer ${VLAN}: eiface vl${TAG1} ether
+name ${VLAN}:vl${TAG1} ${EIFACE1}
+msg ${VLAN}: addfilter { vlan=${TAG1} hook="vl${TAG1}" pcp=0 cfi=0 }
+
+# Finally the right lane
+name ${ETHERDEV2}: ${ETHER2}
+mkpeer ${ETHER2}: ula4tag lower tag
+name ${ETHER2}:lower tag${TAG2}
+msg tag${TAG2}: setconfig { ulatag=${TAG2}, ip4tag=${TAG2} }
+
+connect tag${TAG2}: ${BRIDGE}: untag link
+
+mkpeer ${VLAN}: eiface vl${TAG2} ether
+name ${VLAN}:vl${TAG2} ${EIFACE2}
+msg ${VLAN}: addfilter { vlan=${TAG2} hook="vl${TAG2}" pcp=0 cfi=0 }

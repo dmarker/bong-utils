@@ -1,0 +1,75 @@
+# This is just connecting one of your network interfaces, an ng_ether(4), to
+# an ng_bridge(4).
+#
+# This is different from ether-bridge in that we don't connect the upper part
+# of the ng_ether(4) to the bridge and instead add an ng_eifce(4).
+#
+# Why do that? I use dhcpcd(8) prety much everywhere to configure the network.
+# It is the only way to get full IPv6 routing. And there seems to be an issue
+# where it alters the settings. Its not right away but overnight network will
+# be lost.
+#
+# By *not* configuring an address for the ng_ether(4) (and you do have to make
+# sure dhcpcd(8) ignores it) things "just work". dhcpcd(8) can configure the
+# ng_eiface(4) and all is well.
+#
+# Here is what is created by this snippet:
+#
+#      +-------------+
+#      | ng_eiface   |
+#      | EIFACE=lan0 |
+#      +-----+-------+
+#      ether |
+#            | link
+#      +-----+---------------------+
+#      | ng_bridge BRIDGE=br0      |
+#      +-----+---------------------+
+#       link |
+#            | lower
+#      +-----+--------+
+#      | ng_ether     |
+#      | ETEHRDEV=em1 | <-- MUST be put in promisc mode
+#      | ETHER=br0em1 |
+#      +--------------+
+#
+#
+# The purpose of this snippet is to give you a bridge ready to have any number
+# of wormholes connected to it for jails to share your network.
+#
+# You need to run this through envsubst with the following variables set:
+#	grep -o '^[^#]*' ethere-eiface-bridge | \
+#	EIFACE=lan0 ETHERDEV=em1 BRIDGE=br0 ETHER=${BRIDGE}${ETHERDEV} \
+#	envsubst > /usr/local/etc/ng/ngctl.conf
+#
+# While you don't really have to rename the interface, I like to rename any
+# ng_ether(4) that only have lower connected so its obvious in ifconfig(8).
+# By putting the bridge name first I have an easy pattern for dhcpcd(8) to
+# ignore. Its one line:
+#	denyinterfaces br*
+#
+# Now dhcpcd(8) will leave our physical interface alone.
+#
+# TODO: you shoud configure ETHER in rc.conf following this
+# https://wiki.freebsd.org/Networking/10GbE/Router#Disabling_LRO_and_TSO
+#
+# It should look similar to this (remember we renamed physical)
+# ifconfig_br0em1="-ts04 -tso6 -lro -vlanhwtso promisc up"
+#
+
+# start with renaming LANIF
+name ${ETHERDEV}: ${ETHER}
+msg ${ETHER}: setpromisc 1
+
+# even though we will make the bridge persist, we can create it by connecting
+# to ETHER and avoid a disconnect.
+mkpeer ${ETHER}: bridge lower link
+name ${ETHER}:lower ${BRIDGE}
+msg ${BRIDGE}: setpersistent
+
+# make the eiface
+# we could use link1 and avoid the dance but I prefer to never rely upon
+# knowning the [up]link number.
+mkpeer .: eiface e ether
+name .:e ${EIFACE}
+disconnect .: e
+connect ${EIFACE}: ${BRIDGE}: ether link

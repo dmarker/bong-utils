@@ -1,0 +1,219 @@
+#
+# Copyright (c) 2025 David Marker <dave@freedave.net>
+#
+# SPDX-License-Identifier: BSD-2-Clause
+#
+
+# PROVIDE: netgraph
+# REQUIRE: FILESYSTEMS iovctl serial sppp sysctl
+# REQUIRE: hostid
+# BEFORE:  netif
+# KEYWORD: nojailvnet
+
+. /etc/rc.subr
+
+name="netgraph"
+desc="configure netgraph nodes via file"
+rcvar="${name}_enable"
+start_cmd="netgraph_start"
+stop_cmd="netgraph_stop"
+
+: ${netgraph_confdir:=/usr/local/etc/ng}
+: ${netgraph_config:="${netgraph_confdir}/ngctl.conf"}
+
+#
+# This is the most minimal netgraph(4) configuration we can create. That is it
+# puts the effort on you to create the netgraph_config file(s).
+#
+# I have created many scripts that attempt to configure netgraph(4) from
+# rc.conf(5) variables. It is a fools errand. There are over 50 nodes today.
+# You really don't want to figure out what is / isn't legal. You don't want
+# to figure out a scheme for vlan tags for the user. Just let them do whatever
+# they want, however they want.
+#
+# The one extra thing it does after `ngctl -f ${netgraph_config}` is rename
+# any interfaces part of ng_ether(4), ng_eiface(4), ng_iface(4), ng_siit(4) and
+# ng_nat64(4) nodes to match whatever you named the node (or in siit/nat64 the
+# node name plus protocol family). This gives you predictability for the names
+# of interfaces you need to configure in rc.conf(8).
+#
+# If a node is unnamed, we don't change the network interface names. This
+# shouldn't actually be possible.
+#
+# It is a choice to not duplicate anything more. You can set an interface to
+# promiscuous with the usual rc.conf(5) machinery, which runs after this.
+#
+# For shutdown we loop over every ngctl node calling shutdown. This is fine for
+# ng_ether(4) too as it resets them, but they never leave so the loop has to
+# account for that. Right now we just send them a shutdown last with other
+# persistent nodes and restore their original driver name. That matters as it
+# lets you stop and start the service while allowing the netif name changes.
+#
+# For ng_ether(4) you are attaching to a bridge, don't forget to follow best
+# practices here:
+# https://wiki.freebsd.org/Networking/10GbE/Router#Disabling_LRO_and_TSO
+#
+# In your rc.conf(5) with standard `ifconfig_*` variables.
+#
+
+AWK=/usr/bin/awk
+CUT=/usr/bin/cut
+HEAD=/usr/bin/head
+IFCONFIG=/sbin/ifconfig
+NGCTL=/usr/sbin/ngctl
+TAIL=/usr/bin/tail
+
+
+# returns lines of <type>=<id> like:
+#	ether=00000001
+#	bridge=00000002
+#	etc.
+# it returns them this way because we need to know types on shutdown and
+# because we don't know if everything has a name!
+list_typed_ids()
+{
+	skt="ngctl$(echo $$)"	# should be unique
+
+	# better to have empty result than parse errors
+	${NGCTL} -n $skt ls 2>/dev/null | ${AWK} -v skt=$skt '
+		BEGIN {
+			OFS="=";
+		}{
+			if (NR > 1 && $2 != skt) print $4,$6
+		}
+	'
+}
+
+# when a node is not named it has "<unnamed>" in output, that is a signal to
+# leave any network interface name alone.
+id2name()
+{
+	${NGCTL} info ${1} | ${HEAD} -1 | ${AWK} '{ print $2 }'
+}
+
+# for ng_ether(4), ng_eiface(4) and ng_iface(4). This works because they all
+# use `getifname` as a message.
+rename_single()
+{
+	local ndid=$1
+	local ndname ifname
+
+	ifname=$(${NGCTL} msg ${ndid} getifname | ${TAIL} -1 | ${CUT} -d\" -f2)
+	ndname=$(id2name ${ndid})
+
+	# Pretty sure this can't happen as ng_ether(4) start with driver name,
+	# ng_eiface(4) start as `ngethX` and ng_iface(4) start as `ngX` names.
+	if [ $ndname == "<unnamed>" ]; then
+		echo "${ndid} interface name unchanged: \"${ifname}\"" >&2
+	else
+		${IFCONFIG} ${ifname} name ${ndname}
+	fi
+}
+
+# for ng_siit(4) and ng_nat64(4)
+rename_double()
+{
+	local ndid=$1
+	local ndname ifname4 ifname6
+
+	ndname=$(id2name ${ndid})
+	ifname4=$(${NGCTL} msg ${ndid} getifname4 | ${TAIL} -1 | ${CUT} -d\" -f2)
+	ifname6=$(${NGCTL} msg ${ndid} getifname6 | ${TAIL} -1 | ${CUT} -d\" -f2)
+
+	# This one could happen as we don't provide default names for ng_siit(4)
+	# or ng_nat64(4)
+	if [ $ndname == "<unnamed>" ]; then
+		echo "${ndid} interface names unchanged: \"${ifname4}\",\"${ifname6}\"" >&2
+	else
+		${IFCONFIG} ${ifname4} name "${ndname}ip4"
+		${IFCONFIG} ${ifname6} name "${ndname}ip6"
+	fi
+}
+
+get_orig_ether()
+{
+	local ifname=$1
+	${IFCONFIG} -D ${ifname} | ${AWK} '$1 == "drivername:" { print $2 }'
+}
+
+restore_ether_name()
+{
+	local ndid=$1
+	local ifname orig
+
+	ifname=$(${NGCTL} msg ${ndid} getifname | ${TAIL} -1 | ${CUT} -d\" -f2)
+	orig=$(get_orig_ether ${ifname})
+
+	# just force them to orig
+	${NGCTL} name ${ndid} ${orig}
+	${IFCONFIG} ${ifname} name ${orig}
+}
+
+netgraph_start()
+{
+	# blindly run ngctl(8) with the file(s) provided
+	# If this fails we want to see the errors.
+	${NGCTL} -f ${netgraph_config}
+
+	# ran before network brought up so lets just reset and inform user so
+	# they can fix config and try again.
+	if [ $? -ne 0 ]; then
+		echo "error with \"$netgraph_config\": restoring network" >&2
+		netgraph_stop
+		return  # don't bother with next part.
+	fi
+
+	# This is only thing we do beyond running your file. We make the netif
+	# interface names match whatever you called them in your ngctl file
+	# so you have a predictable name for rc.conf(5).
+	for nd in $(list_typed_ids); do
+		ndtype=${nd%%=*}
+		ndid="[${nd#*=}]:"
+
+		case $ndtype in
+		ether)	rename_single ${ndid}
+			;;
+		eiface) rename_single ${ndid}
+			;;
+		iface)	rename_single ${ndid}
+			;;
+		siit)	rename_double ${ndid}
+			;;
+		nat64)	rename_double ${ndid}
+			;;
+		esac
+	done
+}
+
+netgraph_stop()
+{
+	# We just ruthelessly give everything a shutdown
+	for nd in $(list_typed_ids); do
+		ndtype=${nd%%=*}
+		ndid="[${nd#*=}]:"
+
+		# Some nodes will already be gone if we cut all their links.
+		# So expect failure and don't show.
+		${NGCTL} shutdown ${ndid} 2>/dev/null
+	done
+
+	# Ok, one more time, display error for anything not ng_ether(4)
+	# And reset name of ng_ether back to driver name.
+	for nd in $(list_typed_ids); do
+		ndtype=${nd%%=*}
+		ndid="[${nd#*=}]:"
+		${NGCTL} shutdown ${ndid} 2>/dev/null
+
+		case ${ndtype} in
+			ether)	echo "$ndid"
+				restore_ether_name ${ndid}
+				;;
+			*)	echo "node ${ndid} failed to shutdown" >&2
+				;;
+		esac
+	done
+}
+
+
+load_rc_config $name
+run_rc_command $*

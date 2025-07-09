@@ -1,0 +1,38 @@
+# Rather than create a whole new snippet, this just combines 2
+#
+# This is NOT actually what I run. I have this as its the more traditional
+# way of using ng_bridge(4) with ng_ether(4). But it has downsides.
+# I use workstation2. Explination is in ether-eiface-bridge snippet.
+# 
+# Here is what is created by this snippet:
+#
+#
+#  +--------+                                           +--------------+
+#  |        |upper                                      | ng_eiface    |
+#  |  +-----+--------+                                  | EIFACE=jail0 |
+#  |  | ng_ether     |                                  +-----+--------+
+#  |  | ETHERDEV=em0 | <-- MUST be put in promisc mode        | ether
+#  |  | ETHER=lan0   |                                        |
+#  |  +-----+--------+                                        |
+#  |  lower |                                                 |
+#  |        | link                                       link |
+#  |  +-----+---------------------+     +---------------------+-----+
+#  |  | ng_bridge BRIDGE=br0      |     | ng_bridge BRIDGE=br1      |
+#  |  +-----+---------------------+     +---------------------------+
+#  |        | link
+#  +--------+
+#
+# But the trick is you create it by reusing ether-bridge and eiface-bridge
+#
+# You need to run this through envsubst with the following variables set:
+#	grep -o '^[^#]*' ether-bridge | \
+#	ETHERDEV=re0 ETHER=lan0 BRIDGE=br0 \
+#	envsubst > /usr/local/etc/ng/ngctl.conf
+#
+# Followed by:
+#	grep -o '^[^#]*' eiface-bridge | \
+#	EIFACE=jail0 BRIDGE=br1 \
+#	envsubst >> /usr/local/etc/ng/ngctl.conf
+# 
+# You could keep stamping out more bridges for your jails, but I find that one
+# link that gets them to the internet and 1 for private comms is enough.

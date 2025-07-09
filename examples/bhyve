@@ -1,0 +1,33 @@
+# Rather than create a whole new snippet, this just combines 2
+# This is actually what I in my bhyve vm of FreeBSD-15.
+# 
+# Here is what is created by this snippet:
+#
+#      +-------------+                                    +--------------+
+#      | ng_eiface   |                                    | ng_eiface    |
+#      | EIFACE=lan0 |                                    | EIFACE=jail0 |
+#      +-----+-------+                                    +--------+-----+
+#      ether |                                                     |
+#            | link                                           link |
+#      +-----+---------------------+         +---------------------+-----+
+#      | ng_bridge BRIDGE=br0      |         | ng_bridge BRIDGE=br1      |
+#      +-----+---------------------+         +---------------------+-----+
+#       link |                                                     | link
+#            | lower                                         lower |
+#      +-----+-----------+                             +-----------+-----+
+#      | ng_ether        |                             | ng_ether        |
+#      | ETEHRDEV=vtnet0 | <-- both MUST be put        | ETHERDEV=vtnet1 |
+#      | ETHER=br0vtnet0 |     put in promisc mode --> | ETHER=br1vtnet1 |
+#      +-----------------+                             +-----------------+
+#
+# But the trick is you create it by reusing ether-eiface-bridge twice.
+#
+# You need to run this through envsubst with the following variables set:
+#	grep -o '^[^#]*' ether-eiface-bridge | \
+#	EIFACE=lan0 ETHERDEV=vtnet0 BRIDGE=br0 ETHER=${BRIDGE}${ETHERDEV} \
+#	envsubst > /usr/local/etc/ng/ngctl.conf
+#
+# Followed by:
+#	grep -o '^[^#]*' ether-eiface-bridge | \
+#	EIFACE=jail0 ETHERDEV=vtnet1 BRIDGE=br1 ETHER=${BRIDGE}${ETHERDEV} \
+#	envsubst >> /usr/local/etc/ng/ngctl.conf
