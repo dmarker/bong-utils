@@ -32,14 +32,14 @@
 #           untag |                                         | untag
 #           +-----+------+                           +------+-----+
 #           | ng_ula4tag |                           | ng_ula4tag |
-#           | tag${TAG1} |                           | tag${tag2} |
+#           | tag${TAG1} |                           | tag${TAG2} |
 #           +-----+------+                           +------+-----+
 #                 | tag                                 tag |
 #           lower |                                         | lower
 #        +--------+------+                           +------+--------+
 #        | ng_ether      |                           | ng_ether      |
 #        | ETHERDEV1=em1 |                           | ETHERDEV2=em2 |
-#        | ETHER1=em1br0 |                           | ETHER2=em2br0 |
+#        | ETHER1=br0em1 |                           | ETHER2=br0em2 |
 #        +--------+------+                           +------+--------+
 #                 |                                         |
 #                 V                                         V
@@ -57,13 +57,13 @@
 # ng_ether(4). In fact that would not make sense here.
 #
 # To give users a hint they should not configure em1/em2 we also rename them to
-# em1br0 and em2br0 (add the bridge name to the end).
+# br0em1 and br0em2 (prefix with bridge name).
 #
 # Picture above as if this was run:
 #	grep -o '^[^#]*' split4ula | \
 #	EIFACE=gw0 VLAN=vlan0 BRIDGE=br0 \
-#	EIFACE1=lan0 TAG1=10 ETHERDEV1=em1 ETHER1=${ETHERDEV1}${BRIDGE} \
-#	EIFACE2=wifi0 TAG2=20 ETHERDEV2=em2 ETHER2=${ETHERDEV2}${BRIDGE} \
+#	EIFACE1=lan0 TAG1=10 ETHERDEV1=em1 ETHER1=${BRIDGE}${ETHERDEV1} \
+#	EIFACE2=wifi0 TAG2=20 ETHERDEV2=em2 ETHER2=${BRIDGE}${ETHERDEV2} \
 #	envsubst > /usr/local/etc/ng/ngctl.conf
 #
 #
@@ -71,8 +71,8 @@
 # https://wiki.freebsd.org/Networking/10GbE/Router#Disabling_LRO_and_TSO
 #
 # So in this case it would be (remembering to use new names):
-# ifconfig_em1br0="-tso4 -tso6 -lro -vlanhwtso promisc up"
-# ifconfig_em2br0="-tso4 -tso6 -lro -vlanhwtso promisc up"
+# ifconfig_br0em1="-tso4 -tso6 -lro -vlanhwtso promisc up"
+# ifconfig_br0em2="-tso4 -tso6 -lro -vlanhwtso promisc up"
 #
 # This is passing IPv4 and IPv6 through the ula4tags. You could make a similar
 # snippet that dropped IPv4 (or ULA for that matter). See ng_ula4tag(4).

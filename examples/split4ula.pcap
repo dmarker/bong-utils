@@ -50,14 +50,14 @@
 #           untag |                                         | untag
 #           +-----+------+                           +------+-----+
 #           | ng_ula4tag |                           | ng_ula4tag |
-#           | tag${TAG1} |                           | tag${tag2} |
+#           | tag${TAG1} |                           | tag${TAG2} |
 #           +-----+------+                           +------+-----+
 #                 | tag                                 tag |
 #           lower |                                         | lower
 #        +--------+------+                           +------+--------+
 #        | ng_ether      |                           | ng_ether      |
 #        | ETHERDEV1=em1 |                           | ETHERDEV2=em2 |
-#        | ETHER1=em1br0 |                           | ETHER2=em2br0 |
+#        | ETHER1=br0em1 |                           | ETHER2=br0em2 |
 #        +--------+------+                           +------+--------+
 #                 |                                         |
 #                 V                                         V
@@ -72,8 +72,8 @@
 # These are the same variables as `split4ula` so same thing works:
 #	grep -o '^[^#]*' split4ula | \
 #	EIFACE=gw0 VLAN=vlan0 TEE=tee0 BRIDGE=br0 \
-#	EIFACE1=lan0 TAG1=10 ETHERDEV1=em1 ETHER1=${ETHERDEV1}${BRIDGE} \
-#	EIFACE2=wifi0 TAG2=20 ETHERDEV2=em2 ETHER2=${ETHERDEV2}${BRIDGE} \
+#	EIFACE1=lan0 TAG1=10 ETHERDEV1=em1 ETHER1=${BRIDGE}${ETHERDEV1} \
+#	EIFACE2=wifi0 TAG2=20 ETHERDEV2=em2 ETHER2=${BRIDGE}${ETHERDEV2} \
 #	envsubst
 #
 # All those teeX left2right and right2left are just waiting to allow packet
@@ -83,8 +83,8 @@
 # https://wiki.freebsd.org/Networking/10GbE/Router#Disabling_LRO_and_TSO
 #
 # So in this case it would be (remembering to use new names):
-# ifconfig_em1br0="-tso4 -tso6 -lro -vlanhwtso promisc up"
-# ifconfig_em2br0="-tso4 -tso6 -lro -vlanhwtso promisc up"
+# ifconfig_br0em1="-tso4 -tso6 -lro -vlanhwtso promisc up"
+# ifconfig_br0em2="-tso4 -tso6 -lro -vlanhwtso promisc up"
 
 # create middle lane first, starting with EIFACE as it is persistent
 mkpeer .: eiface e ether
