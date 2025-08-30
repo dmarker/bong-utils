@@ -40,11 +40,7 @@ ring32_init(struct ring32 *rb, uint8_t lgpages)
 		return (-1);
 	}
 
-	/*
-	 * Make sure we can actually handle the size.
-	 * This may seem overly complicated but it works for all possible R_SZ
-	 * without having to change anything.
-	 */
+	/* Make sure we can actually handle the size. */
 	if ((lgpagesz + lgpages) > (8 * sizeof(rb->capacity) - 1)) {
 		errno = EDOM;
 		return (-1);

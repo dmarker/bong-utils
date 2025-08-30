@@ -9,6 +9,9 @@ LOCALBASE?=/usr/local
 BINDIR=	${LOCALBASE}/bin
 SHAREDIR=${LOCALBASE}/share
 
+DIRS+=	MAN8
+MAN8=	${MANDIR}8
+
 PROG=	ngportal
 MAN=	ngportal.8
 SRCS=	kld.c ng.c wormhole.c main.c

@@ -4,14 +4,13 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#ifndef __FREEDAVE_NET_RING_H__
+#define __FREEDAVE_NET_RING_H__
+
 #include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <sys/types.h>
-
-
-#ifndef __FREEDAVE_NET_RING_H__
-#define __FREEDAVE_NET_RING_H__
 
 
 struct ring32 {
@@ -176,4 +175,3 @@ ring32_poke(struct ring32 *rb, uint32_t idx, uint8_t val)
 }
 #endif /* TEST */
 #endif /* __FREEDAVE_NET_RING_H__ */
-
