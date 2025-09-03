@@ -121,7 +121,7 @@ ngp_set_type(ngctx ctrl, ng_ID_t pcap, uint8_t snum, enum pkt_type pkt)
 	char *hook_pkt[] = {
 		HOOK_PKT_ETHER,
 #		ifdef INET
-		HOOK_PKT_INET4,
+		HOOK_PKT_INET,
 #		endif
 #		ifdef INET6
 		HOOK_PKT_INET6

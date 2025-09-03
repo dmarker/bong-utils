@@ -9,6 +9,7 @@
 #include <fcntl.h>
 #include <getopt.h>
 #include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -16,6 +17,8 @@
 #include <sys/param.h>
 #include <sys/jail.h>
 #include <sys/sysctl.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 #include <jail.h>
 
 #include "ring32.h"
@@ -168,7 +171,7 @@ parse_spec(char *arg, struct pcap_spec *ps)
 		if (strcmp(layer, HOOK_PKT_ETHER) == 0) {
 			ps->pkt = PKT_ETHER;
 #		ifdef INET
-		} else if (strcmp(layer, HOOK_PKT_INET4) == 0) {
+		} else if (strcmp(layer, HOOK_PKT_INET) == 0) {
 			ps->pkt = PKT_INET4;
 #		endif
 #		ifdef INET6
@@ -177,7 +180,7 @@ parse_spec(char *arg, struct pcap_spec *ps)
 #		endif
 		} else warnx(
 			"layer `%s' is not one of `%s', `%s', or `%s'",
-			layer, HOOK_PKT_ETHER, HOOK_PKT_INET4, HOOK_PKT_INET6
+			layer, HOOK_PKT_ETHER, HOOK_PKT_INET, HOOK_PKT_INET6
 		), rc++;
 	}
 
@@ -221,29 +224,6 @@ calc_lgpages(size_t size)
 
 
 	return ((uint32_t)(npage * pagesz));
-}
-
-
-/* This just has to be called before data arrives so the first thing we give to
- * tcpdump is the header it needs to see.
- *
- * That is why its OK to give rb_read_buffer(NULL), we know there is space.
- */
-static void
-make_file_header(int32_t snaplen)
-{
-	struct pcap_file_header *hdr = ring32_read_buffer(&G.buffer, NULL);
-
-	assert(hdr != NULL);
-	hdr->magic = 0xA1B2C3D4;	/* TCPDUMP_MAGIC */
-	hdr->version_major = 2;
-	hdr->version_minor = 4;
-	hdr->thiszone = 0;
-	hdr->sigfigs = 0;
-	hdr->snaplen = snaplen;
-	hdr->linktype = 0x1;		/* LINKTYPE_ETHERNET */
-
-	ring32_read_advance(&G.buffer, sizeof(*hdr));
 }
 
 /*
@@ -426,7 +406,6 @@ main(int argc, char **argv)
 		ERRALT(EX_OSERR), "unable to initialize buffer"
 	); else
 		err_set_exit(err_cleanup);
-	make_file_header(snaplen); /* prefil first buffer with header */
 
 	ng_create_context(&G.ctrl, &G.data);
 

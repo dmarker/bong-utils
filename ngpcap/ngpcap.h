@@ -5,7 +5,6 @@
  */
 
 #include <errno.h>
-#include <pcap/pcap.h>
 #include <netgraph.h>
 #include <stdbool.h>
 
