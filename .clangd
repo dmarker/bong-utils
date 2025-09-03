@@ -1,5 +1,6 @@
 CompileFlags:
     Add:
         - "-I../common"
+        - "-I/usr/local/include"
         - "-DINET"
         - "-DINET6"

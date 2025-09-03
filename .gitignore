@@ -4,6 +4,7 @@
 *.so.*
 *.o
 *.pico
+*.pieo
 *.?.gz
 ngportal/ngportal
 ngpcap/ngpcap

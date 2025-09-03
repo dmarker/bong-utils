@@ -15,6 +15,7 @@ MAN=
 SRCS=	kld.c ng.c pcap.c ring32.c main.c
 LIBADD=	jail netgraph
 CFLAGS+=-I${.CURDIR}/../common
+CFLAGS+=-I${LOCALBASE}/include
 MK_DEBUG_FILES= no
 
 CFLAGS.main.c += -DINET -DINET6

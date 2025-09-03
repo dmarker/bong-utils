@@ -17,6 +17,7 @@ MAN=	ngportal.8
 SRCS=	kld.c ng.c wormhole.c main.c
 LIBADD=	jail netgraph
 CFLAGS+=-I${.CURDIR}/../common
+CFLAGS+=-I${LOCALBASE}/include
 MK_DEBUG_FILES= no
 
 WARNS?=1
