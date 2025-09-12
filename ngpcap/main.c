@@ -222,8 +222,7 @@ calc_lgpages(size_t size)
 	npage |= npage >> 16;
 	npage++;
 
-
-	return ((uint32_t)(npage * pagesz));
+	return (uint8_t)(ffsl(npage) - 1);
 }
 
 /*
@@ -260,7 +259,6 @@ prepare_socket(int fd)
 	);
 }
 
-/* TODO: make non-block and anything else??? oh yeah set binary!!! */
 static void
 set_nonblocking(int fd)
 {
@@ -378,7 +376,6 @@ main(int argc, char **argv)
 	}
 	if (rc != 0) Usage("\n\n"); /* already used warn(3) parsing */
 
-
 	/*
 	 * Unless told not to, make sure we have modules loaded. This fails if
 	 * run in a jail and modules are not already loaded, c’est la vie.
@@ -409,17 +406,16 @@ main(int argc, char **argv)
 
 	ng_create_context(&G.ctrl, &G.data);
 
-	G.pcap = ngp_create(G.ctrl, ".", "pcap");
-	ngp_set_snaplen(G.ctrl, G.pcap, snaplen); /* must be before connects */
-
 	for (ix = 0; ix < argc; ix++) {
-		ngp_connect(
+		G.pcap = ngp_connect_src(
 			G.ctrl, G.pcap, (uint8_t)ix,
 			intercepts[ix].node,
 			intercepts[ix].hook
 		);
 		ngp_set_type(G.ctrl, G.pcap, (uint8_t)ix, intercepts[ix].pkt);
 	}
+	ngp_set_snaplen(G.ctrl, G.pcap, snaplen); /* must be before snoop */
+	ngp_connect_snp(G.ctrl, G.pcap, ".", "pcap");
 
 	set_nonblocking(G.data);
 	set_nonblocking(STDOUT_FILENO);
@@ -440,8 +436,7 @@ main(int argc, char **argv)
 		ERRALT(EX_OSERR), ": kevent failed to register events"
 	);
 
-	/* XXX verify we need this, since we don't want to register just modify now */
-	evt[0].flags &= ~(EV_ADD);
+	evt[0].flags &= ~(EV_ADD); /* won't be adding any more */
 	evt[1].flags &= ~(EV_ADD);
 
 	do {
@@ -450,10 +445,11 @@ main(int argc, char **argv)
 		int nchg = nitems(evt);
 
 		/*
-		 * order matters as EVREAD is evt[0]. If we can't read we
-		 * advance chgs to point to evt[1].
+		 * Order matters as EVREAD is evt[0]. If we can't read we
+		 * advance chgs to point to evt[1]. Only read if there is at
+		 * least `snaplen' bytes free.
 		 */
-		if (!ring32_full(&G.buffer)) {
+		if (ring32_free(&G.buffer) >= snaplen) {
 			evt[0].flags |= (EV_ENABLE | EV_DISPATCH);
 		} else {
 			chg++; /* not altering read */

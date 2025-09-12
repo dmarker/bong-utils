@@ -21,7 +21,7 @@ enum pkt_type {
 #	endif
 };
 
-ng_ID_t	ngp_create(ngctx, const char *, const char *);
 void	ngp_set_snaplen(ngctx, ng_ID_t, int32_t);
-void	ngp_connect(ngctx, ng_ID_t, uint8_t, const char *, const char *);
+ng_ID_t	ngp_connect_src(ngctx, ng_ID_t, uint8_t, const char *, const char *);
+ng_ID_t	ngp_connect_snp(ngctx, ng_ID_t, const char *, const char *);
 void	ngp_set_type(ngctx, ng_ID_t, uint8_t, enum pkt_type);
