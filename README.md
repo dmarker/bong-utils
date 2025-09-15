@@ -96,6 +96,8 @@ allows me to use SIIT as well. This requires the ng_ula4tag(4) from
 as trivial as it looks. It makes two ng_bridge(4)s with one of them connected to
 the `lower` hook of an ng_ether(4) that I later put into promiscuous mode in
 rc.conf(8). I do *not* attach the `upper` hook of the ng_ether(4) but instead
-creates two ng_eiface(4) with one attached to each bridge. There is no advantage
-to this I just prefer consistency of configuring ng_eiface(4) with vanity names
-and leaving the device name alone and connecting it to the bridge.
+creates two ng_eiface(4) with one attached to each bridge. There is one advantage
+to this way over the traditional: by having two interfaces I can let [net/dhcpcd][30]
+configure the ng_eiface(4) and it won't change the promiscuous settings I put on
+the physical device. This is because I rename it `brX<ifacename>` and filter out
+all interfaces starting with `br` in `dhcpcd.conf`.

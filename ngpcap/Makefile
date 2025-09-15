@@ -9,9 +9,11 @@ LOCALBASE?=/usr/local
 BINDIR=	${LOCALBASE}/bin
 SHAREDIR=${LOCALBASE}/share
 
+DIRS+=	MAN8
+MAN8=	${MANDIR}8
+
 PROG=	ngpcap
-MAN=
-#MAN=	ngpcap.8
+MAN=	ngpcap.8
 SRCS=	kld.c ng.c pcap.c ring32.c main.c
 LIBADD=	jail netgraph
 CFLAGS+=-I${.CURDIR}/../common

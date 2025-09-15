@@ -1,0 +1,132 @@
+.\"
+.\" Copyright (c) 2025 David Marker <dave@freedave.net>
+.\"
+.\" SPDX-License-Identifier: BSD-2-Clause
+.\"
+.Dd September 13, 2025
+.Dt NGPCAP 8
+.Os
+.Sh NAME
+.Nm ngpcap
+.Nd netgraph packet capture utility
+.Sh SYNOPSIS
+.Nm
+.Op Fl n
+.Op Fl j Ar jail
+.Op Fl s Ar snaplen
+.Ar spec
+.Op Ns Ar spec ...
+.Sh DESCRIPTION
+The
+.Nm
+utility creates an
+.Xr ng_pcap 4 ,
+connects it to all the
+.Va specs
+(up to
+.Dv NG_PCAP_MAX_LINKS )
+provided and streams
+.Xr pcap 3
+data to
+.Dv stdtout .
+This is a simpler way of doing what can already be done with
+.Xr ngctl 8
+and
+.Xr nghook 8 .
+It also alows capturing larger packet snapshots than
+.Xr nghook 8
+is able to since it is hardcoded.
+.Pp
+The following options are available:
+.Bl -tag -width indent
+.It Fl n
+Disable automatic loading of
+.Xr ng_socket 4
+and
+.Xr ng_pcap 4
+kernel modules.
+.It Fl j Ar jail
+Perform the actions inside the
+.Ar jail .
+.El
+.Pp
+Specifications are colon separated strings with the following
+components, none of which are optional: <type:node:hook>
+.Bl -tag -width node:hook
+.It type
+the type of traffic this link will send.
+This must be set to one of the options for
+.Dv NGM_PCAP_SET_SOURCE_TYPE Pq Ic setsourcetype
+(see
+.Xr ng_pcap 4
+for details).
+.It node:hook
+a netgraph node and one of its hooks to connect as a source for packet capture.
+.El
+.Sh EXIT STATUS
+.Ex -std
+.Sh EXAMPLES
+Using the same example set up in
+.Xr ng_pcap 4 :
+.Bd -literal -offset indent
+
+               right2left ---+  +--------------------+
+                             |  | left2right         | source0
+  +----------+            +--+--+--+            +----+----+
+  | ng_iface |            | ng_tee |            | ng_pcap |
+  | foo0     |            | tee0   |            | pcap0   |
+  +----+-----+            +--+--+--+            +---------+
+       | source0        left |  |
+       +---------------------+  +--- right
+
+.Ed
+.Pp
+As in the
+.Xr ng_pcap 4 ,
+the interface is not connected to anything but we can still use it to capture
+packets.
+But now we don't actually have to set up the
+.Xr ng_pcap 4
+node, that is done for us by this utility.
+.Bd -literal -offset 4n
+#!/bin/sh
+
+ngctl -f- << EOF
+mkpeer .: iface i inet
+name .:i foo0
+disconnect .: i
+mkpeer foo0: tee inet left
+name foo0:inet tee0
+EOF
+.Ed
+.Pp
+Before using you need to configure the interface.
+.Bd -literal -offset 4n
+#!/bin/sh
+
+ifn=$(ngctl msg foo0: getifname | tail -1 | cut -d\\" -f2)
+ifconfig $ifn name foo0
+ifconfig foo0 inet 192.168.128.1 192.168.128.2 up
+.Ed
+Now we can use our utility to start the capture:
+.Bd -literal -offset 4n
+#!/bin/sh
+
+ngpcap -s 1500 inet:tee0:left2right | /usr/sbin/tcpdump -r -
+.Ed
+.Pp
+You will of course need to issue a ping to see traffic:
+.Bd -literal -offset 4n
+#!/bin/sh
+
+ping 192.168.128.2
+.Ed
+.Sh SEE ALSO
+.Xr tcpdump 1 ,
+.Xr pcap 3 ,
+.Xr ng_iface 4 ,
+.Xr ng_socket 4 ,
+.Xr ngctl 8 ,
+.Xr nghook 8
+.Sh AUTHORS
+.An David Marker Aq Mt dave@freedave.net
