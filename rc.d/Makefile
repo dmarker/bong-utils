@@ -4,12 +4,11 @@
 # SPDX-License-Identifier: BSD-2-Clause
 #
 
-#CONFDIR=        /usr/local/etc/rc.d
-#CONFS=	netgraph
-
 LOCALBASE?=/usr/local
-BINDIR=	${LOCALBASE}/etc/rc.d
+SCRIPTSDIR=${LOCALBASE}/etc/rc.d
+DIRS+=  SCRIPTSDIR
 SCRIPTS=	netgraph
 
+beforeinstall : installdirs
 
 .include <bsd.prog.mk>
