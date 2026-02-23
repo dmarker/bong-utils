@@ -14,7 +14,8 @@ Userland utilities meant to be used with [bong-kmods][10].
 These require that you have built and installed [bong-kmods][10] as they need headers
 from [bong-kmods][10].
 
-[jeiface](jeiface/jeiface) does assume this review is merged:
+[jeiface](jeiface/jeiface) does assume this review is merged (it is all the way back to
+stable/14):
 * changes to [ngctl(8)][20] to add `-j` option.
 
 WARNING: This is all a work in progress. I'm still testing!

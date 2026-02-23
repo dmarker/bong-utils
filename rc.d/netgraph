@@ -19,7 +19,7 @@ start_cmd="netgraph_start"
 stop_cmd="netgraph_stop"
 
 : ${netgraph_confdir:=/usr/local/etc/ng}
-: ${netgraph_config:="${netgraph_confdir}/ngctl.conf"}
+: ${netgraph_config:=ngctl.conf}
 
 #
 # This is the most minimal netgraph(4) configuration we can create. That is it
@@ -153,12 +153,12 @@ netgraph_start()
 {
 	# blindly run ngctl(8) with the file(s) provided
 	# If this fails we want to see the errors.
-	${NGCTL} -f ${netgraph_config}
+	${NGCTL} -f ${netgraph_confdir}/${netgraph_config}
 
 	# ran before network brought up so lets just reset and inform user so
 	# they can fix config and try again.
 	if [ $? -ne 0 ]; then
-		echo "error with \"$netgraph_config\": restoring network" >&2
+		echo "error with \"${netgraph_confdir}/${netgraph_config}\": restoring network" >&2
 		netgraph_stop
 		return  # don't bother with next part.
 	fi
