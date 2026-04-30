@@ -98,7 +98,7 @@ static __inline int
 checkcomponent(const char *name, const char *parsed, size_t max, const char **set)
 {
 	int rc = 0;
-	
+
 	if (parsed != NULL) {
 		if (strlen(parsed) > (max)) {
 			warnx("`%s': name too long: `%s'", name, parsed), rc++;
@@ -216,7 +216,7 @@ main(int argc, char **argv)
 	struct wh_spec	spec_storage[2]; // don't access, use whs
 	struct wh_spec	*whs[] = {&spec_storage[0], &spec_storage[1]};
 	struct wh_spec	*ws;
-	
+
 	ng_ID_t farside; /* for side(s) we open */
 
 	setvbuf(stdout, NULL, _IONBF, BUFSIZ);

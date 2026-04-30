@@ -1,17 +1,15 @@
 # This is just connecting one of your network interfaces, an ng_ether(4), to
 # an ng_bridge(4).
 #
-# This is different from ether-bridge in that we don't connect the upper part
-# of the ng_ether(4) to the bridge and instead add an ng_eifce(4).
+# If you look at /usr/share/examples/netgraph/virtual.lan it connects both
+# the upper and lower hook of ng_ether(4). That has the same issues if_bridge
+# has with multicast and IPv6. Just leave upper disconnected, put the interface
+# in promiscuous mode and attach a separate virtual interface to the bridge to
+# use. All problems gone.
 #
-# Why do that? I use dhcpcd(8) prety much everywhere to configure the network.
-# It is the only way to get full IPv6 routing. And there seems to be an issue
-# where it alters the settings. Its not right away but overnight network will
-# be lost.
-#
-# By *not* configuring an address for the ng_ether(4) (and you do have to make
-# sure dhcpcd(8) ignores it) things "just work". dhcpcd(8) can configure the
-# ng_eiface(4) and all is well.
+# This also plays better with dhcpcd(8) as you can have it ignore the physical
+# interface (it would only mess things up) and it can do whatever it wants to
+# the ng_eiface(4) to configure it.
 #
 # Here is what is created by this snippet:
 #

@@ -109,7 +109,7 @@ static __inline int
 checkcomponent(const char *name, const char *parsed, size_t max, const char **set)
 {
 	int rc = 0;
-	
+
 	if (parsed != NULL) {
 		if (strlen(parsed) > (max)) {
 			warnx("`%s': name too long: `%s'", name, parsed), rc++;

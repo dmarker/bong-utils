@@ -23,7 +23,8 @@ stop_cmd="netgraph_stop"
 
 #
 # This is the most minimal netgraph(4) configuration we can create. That is it
-# puts the effort on you to create the netgraph_config file(s).
+# puts the effort on you to create the netgraph_config file acceptable to
+# ngctl(8).
 #
 # I have created many scripts that attempt to configure netgraph(4) from
 # rc.conf(5) variables. It is a fools errand. There are over 50 nodes today.
@@ -31,14 +32,14 @@ stop_cmd="netgraph_stop"
 # to figure out a scheme for vlan tags for the user. Just let them do whatever
 # they want, however they want.
 #
-# The one extra thing it does after `ngctl -f ${netgraph_config}` is rename
-# any interfaces part of ng_ether(4), ng_eiface(4), ng_iface(4), ng_siit(4) and
-# ng_nat64(4) nodes to match whatever you named the node (or in siit/nat64 the
-# node name plus protocol family). This gives you predictability for the names
-# of interfaces you need to configure in rc.conf(8).
-#
-# If a node is unnamed, we don't change the network interface names. This
-# shouldn't actually be possible.
+# The one extra thing it does after `ngctl -f ${netgraph_config}` is rename any
+# network interfaces, so ifconfig(8) and ngctl(8) use the same name. This only
+# effects the following netgraph node types:
+#	• ng_ether(4)
+#	• ng_eiface(4)
+#	• ng_iface(4)
+# This gives predictability for the names of interfaces to configure in
+# rc.conf(8).
 #
 # It is a choice to not duplicate anything more. You can set an interface to
 # promiscuous with the usual rc.conf(5) machinery, which runs after this.
@@ -52,6 +53,17 @@ stop_cmd="netgraph_stop"
 # For ng_ether(4) you are attaching to a bridge, don't forget to follow best
 # practices here:
 # https://wiki.freebsd.org/Networking/10GbE/Router#Disabling_LRO_and_TSO
+#
+# IMO if you attach the `lower` hook of an ng_ether(4) to an ng_bridge(4) you
+# should never attach the upper. Put it in promiscuous and attach and configure
+# a ng_eiface(4) connected to the bridge instead. This solves all the multicast
+# issues with IPv6.
+#
+# Also don't forget that you must have ng_ether(4) load before your physical
+# network interface driver or it can't play with the other nodes in the netgraph
+# playground. Add these lines to your loader.conf(5):
+#	netgraph_load="YES"
+#	ng_ether_load="YES"
 #
 # In your rc.conf(5) with standard `ifconfig_*` variables.
 #
@@ -110,26 +122,6 @@ rename_single()
 	fi
 }
 
-# for ng_siit(4) and ng_nat64(4)
-rename_double()
-{
-	local ndid=$1
-	local ndname ifname4 ifname6
-
-	ndname=$(id2name ${ndid})
-	ifname4=$(${NGCTL} msg ${ndid} getifname4 | ${TAIL} -1 | ${CUT} -d\" -f2)
-	ifname6=$(${NGCTL} msg ${ndid} getifname6 | ${TAIL} -1 | ${CUT} -d\" -f2)
-
-	# This one could happen as we don't provide default names for ng_siit(4)
-	# or ng_nat64(4)
-	if [ $ndname == "<unnamed>" ]; then
-		echo "${ndid} interface names unchanged: \"${ifname4}\",\"${ifname6}\"" >&2
-	else
-		${IFCONFIG} ${ifname4} name "${ndname}ip4"
-		${IFCONFIG} ${ifname6} name "${ndname}ip6"
-	fi
-}
-
 get_orig_ether()
 {
 	local ifname=$1
@@ -151,7 +143,7 @@ restore_ether_name()
 
 netgraph_start()
 {
-	# blindly run ngctl(8) with the file(s) provided
+	# blindly run ngctl(8) with the file provided.
 	# If this fails we want to see the errors.
 	${NGCTL} -f ${netgraph_confdir}/${netgraph_config}
 
@@ -176,10 +168,6 @@ netgraph_start()
 		eiface) rename_single ${ndid}
 			;;
 		iface)	rename_single ${ndid}
-			;;
-		siit)	rename_double ${ndid}
-			;;
-		nat64)	rename_double ${ndid}
 			;;
 		esac
 	done

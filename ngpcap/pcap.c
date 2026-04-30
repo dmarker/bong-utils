@@ -16,7 +16,7 @@
 #include "ngpcap.h"
 
 
-static ng_ID_t	
+static ng_ID_t
 ngp_create(ngctx ctrl, const char *peer, const char *peerhook, const char *hook)
 {
 	int rc;
@@ -49,13 +49,13 @@ ngp_create(ngctx ctrl, const char *peer, const char *peerhook, const char *hook)
 	if (rc == -1) err(
 		ERREXIT, "unable to retrieve %s info, presumed dead", msg.type
 	);
-		
+
 	/*
 	 * This warns about structure alignment but is also done in ngctl(8).
 	 */
 	nd = ((struct nodeinfo *) resp->data)->id;
 	free(resp);
-	
+
 	return (nd);
 }
 
@@ -69,7 +69,7 @@ ngp_connect(
 	int rc;
 	char pth[NG_NODESIZ + 1]; /* extra for ':' */
 	struct ngm_connect msg;
-	
+
 	if (pcap == 0)
 		return ngp_create(ctrl, peer, peerhook, hook);
 
@@ -137,7 +137,7 @@ ngp_set_snaplen(ngctx ctrl, ng_ID_t pcap, int32_t snaplen)
 	int rc;
 	char pth[NG_NODESIZ + 1]; /* extra for ':' */
 	struct ng_pcap_config msg = { .snaplen = snaplen };
-	
+
 	snprintf(pth, sizeof(pth), IDFMT, pcap);
 
 	rc = NgSendMsg(ctrl, pth, NGM_PCAP_COOKIE, NGM_PCAP_SET_CONFIG, &msg,
