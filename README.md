@@ -7,6 +7,10 @@
 [31]: https://man.freebsd.org/cgi/man.cgi?query=envsubst
 [32]: https://www.freshports.org/devel/gettext-runtime
 [33]: https://man.freebsd.org/cgi/man.cgi?query=ng_tee
+[34]: https://github.com/dmarker/bone
+
+# MOVED
+This contentes of this repo was merged into [bone][34].
 
 # bong-utils
 Userland utilities meant to be used with [bong-kmods][10].
